@@ -120,7 +120,7 @@ if (app.Environment.IsDevelopment())
 
     // Seed Identity roles + admin
     await SeedData.SeedIdentityAsync(userManager, roleManager);
-
+        
     // Seed products (from your old code, this is fine)
     var table = services.GetRequiredService<TableStorageService>();
     var blob = services.GetRequiredService<BlobStorageService>();
