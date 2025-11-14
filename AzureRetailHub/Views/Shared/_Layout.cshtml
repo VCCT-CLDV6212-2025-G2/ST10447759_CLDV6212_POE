@@ -1,48 +1,66 @@
 ﻿<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ABC Retail - @ViewData["Title"]</title>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - AzureRetailHub</title>
 
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/AzureRetailHub.styles.css" asp-append-version="true" />
 </head>
 <body>
+
+    <!-- Modern ABC Retail–style header -->
     <header class="site-header">
         <div class="container header-inner">
+
             <div class="brand">
-                <a href="/" style="text-decoration:none; color:inherit;">
+                <a asp-area="" asp-controller="Home" asp-action="Index" style="text-decoration:none; color:inherit;">
                     <span class="brand-icon">✺</span>
-                    <span class="brand-name">ABC Retail</span>
+                    <span class="brand-name">AzureRetailHub</span>
                 </a>
             </div>
 
             <nav class="main-nav">
-                <a href="/Products">Products</a>
-                <a href="/Customers">Customers</a>
-                <a href="/Orders">Orders</a>
-                <a href="/Contracts/">Contracts</a>
+                <a asp-controller="Home" asp-action="Index">Home</a>
+                <a asp-controller="Products" asp-action="Index">Products</a>
+                <a asp-controller="Orders" asp-action="Index">My Orders</a>
+                <a asp-controller="Contracts" asp-action="Index">Contracts</a>
+                <a asp-controller="Cart" asp-action="Index">Cart</a>
             </nav>
+
             <div class="header-right">
                 <button class="bell" aria-label="Notifications">🔔</button>
                 <img class="avatar" src="https://picsum.photos/seed/avatar/48/48" alt="user" />
+                <partial name="_LoginPartial" />
             </div>
+
         </div>
     </header>
 
+    <!-- Main body -->
     <main class="container">
         @RenderBody()
     </main>
 
+    <!-- Modern ABC Retail–style footer -->
     <footer class="site-footer">
         <div class="container footer-inner">
             <div class="footer-col">Contact Us</div>
             <div class="footer-col">Support</div>
             <div class="footer-col">FAQ</div>
         </div>
-        <div class="copyright">@DateTime.Now.Year © ABC Retail. All rights reserved.</div>
+        <div class="copyright">
+            @DateTime.Now.Year © AzureRetailHub. All rights reserved.
+        </div>
     </footer>
-    @RenderSection("Scripts", required: false)
+
+    <!-- Scripts -->
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+
 </body>
 </html>

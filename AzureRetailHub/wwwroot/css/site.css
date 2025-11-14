@@ -46,10 +46,21 @@ body { background: #fff; line-height: 1.4; }
 .product-price { font-size: 13px; color: #777; }
 
 /* Footer */
-.site-footer { margin-top: 40px; padding: 24px 0; border-top:1px solid #eee; }
-.footer-inner { display:flex; gap: 12px; justify-content: center; color:#666; margin-bottom: 8px; }
+/* This code is correct! */
+.site-footer {
+    margin-top: 40px;
+    padding: 24px 0;
+    border-top: 1px solid #eee;
+}
+.footer-inner {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    color: #666;
+    margin-bottom: 8px;
+}
 .footer-col { flex:1; text-align:center; }
-
+    
 /* Responsive */
 @media (max-width: 900px) {
     .product-grid { grid-template-columns: repeat(2, 1fr); }

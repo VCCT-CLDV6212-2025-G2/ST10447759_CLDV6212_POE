@@ -40,7 +40,7 @@
                                 <option value="">-- Select a Product --</option>
                                 @foreach (var product in Model.AvailableProducts)
                                 {
-                                    <option value="@product.RowKey" data-price="@product.Price.ToString("F2")">@product.Name</option>
+                                    <option value="@product.Id" data-price="@product.Price.ToString("F2")">@product.Name</option>
                                 }
                             </select>
                         </div>

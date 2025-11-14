@@ -1,4 +1,4 @@
-﻿@model AzureRetailHub.Models.ProductDto
+﻿@model AzureRetailHub.Models.Product
 @{
     ViewData["Title"] = "Product Details";
 }
@@ -12,6 +12,13 @@
                 <img src="@Model.ImageUrl" alt="@Model.Name" />
             }
         </div>
+        <form asp-controller="Cart" asp-action="Add" method="post" class="mt-3">
+            <input type="hidden" name="id" value="@Model.Id" />
+            <div class="input-group" style="width: 200px;">
+                <input type="number" name="quantity" value="1" class="form-control" />
+                <button type="submit" class="btn btn-primary">Add to Cart</button>
+            </div>
+        </form>
         <div class="details-info">
             <p class="details-price">@string.Format("{0:C}", Model.Price)</p>
             <p class="details-desc">@Model.Description</p>

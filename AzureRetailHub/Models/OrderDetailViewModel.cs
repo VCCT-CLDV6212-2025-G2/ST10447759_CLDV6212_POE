@@ -2,60 +2,36 @@
  * Jeron Okkers
  * ST10447759
  * PROG6221
- */ 
+ * MODIFIED FOR PART 3
+ * Removed ParseItems() and old OrderItem class.
+ * Added nested ItemDetail class.
+ */
 using System.Collections.Generic;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace AzureRetailHub.Models
 {
     public class OrderDetailViewModel
     {
+        // This 'OrderDto' is the new simple DTO class
         public OrderDto Order { get; set; }
         public CustomerDto Customer { get; set; }
-        public List<OrderItem> Items { get; set; } = new List<OrderItem>();
+        public List<ItemDetail> Items { get; set; } = new List<ItemDetail>();
 
         // Helper to calculate the total price of the order
         public decimal TotalPrice => Items.Sum(item => item.TotalPrice);
 
-        public void ParseItems()
+        // This is the nested class the Controller was looking for
+        public class ItemDetail
         {
-            if (!string.IsNullOrEmpty(Order.ItemsJson))
-            {
-                try
-                {
-                    var parsedItems = JsonSerializer.Deserialize<List<OrderItem>>(Order.ItemsJson);
-                    if (parsedItems != null)
-                    {
-                        Items = parsedItems;
-                    }
-                }
-                catch (JsonException)
-                {
-                    // Handle cases where JSON is invalid
-                    Items = new List<OrderItem>();
-                }
-            }
+            public string ProductId { get; set; }
+            public string ProductName { get; set; }
+            public int Quantity { get; set; }
+            public decimal Price { get; set; }
+            public decimal TotalPrice => Quantity * Price;
         }
-    }
 
-    // Represents a single item within an order
-    public class OrderItem
-    {
-        // This property will be in the JSON
-        [JsonPropertyName("productId")]
-        public string ProductId { get; set; }
-
-        // This property will be populated by the controller after fetching the product
-        public string ProductName { get; set; }
-
-        [JsonPropertyName("quantity")]
-        public int Quantity { get; set; }
-
-        [JsonPropertyName("price")]
-        public decimal Price { get; set; }
-
-        public decimal TotalPrice => Quantity * Price;
+        // DELETED: ParseItems() method (it's obsolete)
+        // DELETED: 'public class OrderItem' (it's a separate entity now)
     }
 }
 //================================================================================================================================================================//

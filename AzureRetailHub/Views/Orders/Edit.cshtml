@@ -1,4 +1,4 @@
-﻿@model AzureRetailHub.Models.OrderDto
+﻿@model AzureRetailHub.Models.Order
 
 @{
     ViewData["Title"] = "Edit Order Status";
@@ -6,18 +6,38 @@
 
 <h1>Edit Order Status</h1>
 
-<h4>Order ID: @Model.RowKey.ToUpper()</h4>
+<h4>Order ID: @Model.Id.ToUpper()</h4>
+<hr />
+
+<div>
+    <h5>Customer Details</h5>
+    <dl class="row">
+        <dt class = "col-sm-3">
+            Customer Name
+        </dt>
+        <dd class = "col-sm-9">
+            @Model.ApplicationUser?.FullName
+        </dd>
+        <dt class = "col-sm-3">
+            Customer Email
+        </dt>
+        <dd class = "col-sm-9">
+            @Model.ApplicationUser?.Email
+        </dd>
+        <dt class = "col-sm-3">
+            Customer ID
+        </dt>
+        <dd class = "col-sm-9">
+            @Model.ApplicationUserId
+        </dd>
+    </dl>
+</div>
 <hr />
 <div class="row">
     <div class="col-md-4">
-        <form asp-action="Edit">
-            <input type="hidden" asp-for="RowKey" />
-
-            <div class="form-group mb-3">
-                <label class="control-label">Customer ID</label>
-                <input class="form-control" value="@Model.CustomerId" readonly />
-            </div>
-
+        <form asp-action="Edit" asp-route-id="@Model.Id">
+            <input type="hidden" asp-for="Id" />
+            
             <div class="form-group mb-3">
                 <label asp-for="Status" class="control-label"></label>
                 <select asp-for="Status" class="form-control">

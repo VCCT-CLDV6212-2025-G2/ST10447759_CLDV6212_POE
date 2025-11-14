@@ -1,85 +1,75 @@
 ﻿/*
  * FILE: ProductsController.cs
- * DESCRIPTION:
- * This controller manages all actions related to Products. It handles creating,
- * viewing, editing, and deleting products. It integrates with both the
- * TableStorageService (for metadata) and the BlobStorageService (for images).
+ * MODIFIED FOR PART 3
+ * This controller now uses ApplicationDbContext (SQL) for metadata.
+ * It still uses FunctionApiClient (from Part 2) for image uploads.
  */
 using System;
-using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
-using Azure;
-using Azure.Data.Tables;
-using AzureRetailHub.Models;      // ProductDto
-using AzureRetailHub.Services;    // TableStorageService, FunctionApiClient
-using AzureRetailHub.Settings;    // StorageOptions
-using Microsoft.AspNetCore.Http;
+using AzureRetailHub.Data;      // ApplicationDbContext
+using AzureRetailHub.Models;     // Product
+using AzureRetailHub.Services;   // FunctionApiClient
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization; // For admin security
 
 namespace AzureRetailHub.Controllers
 {
     public class ProductsController : Controller
     {
-        private readonly TableStorageService _table;
-        private readonly StorageOptions _opts;
+        private readonly ApplicationDbContext _context; // <-- CHANGED
         private readonly FunctionApiClient _fx;
 
         public ProductsController(
-            TableStorageService table,
-            IOptions<StorageOptions> options,
+            ApplicationDbContext context,    // <-- CHANGED
             FunctionApiClient fx)
         {
-            _table = table;
-            _opts = options.Value;
+            _context = context;
             _fx = fx;
         }
 
         // GET: Products (with simple search on Name)
+        // This now reads from SQL
         public async Task<IActionResult> Index(string? q)
         {
-            var list = new List<ProductDto>();
-            await foreach (var e in _table.QueryEntitiesAsync(_opts.ProductsTable, "PartitionKey eq 'PRODUCT'"))
+            var query = _context.Products.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(q))
             {
-                var dto = MapToVm(e);
-                if (string.IsNullOrWhiteSpace(q) ||
-                    (dto.Name ?? string.Empty).Contains(q, StringComparison.OrdinalIgnoreCase))
-                {
-                    list.Add(dto);
-                }
+                query = query.Where(p => p.Name.Contains(q));
             }
+
+            var list = await query.ToListAsync();
             ViewBag.Query = q;
             return View(list);
         }
 
         // GET: Products/Details/{id}
+        // This now reads from SQL
         public async Task<IActionResult> Details(string id)
         {
             if (string.IsNullOrWhiteSpace(id)) return NotFound();
-            try
-            {
-                var entity = await _table.GetEntityAsync(_opts.ProductsTable, "PRODUCT", id);
-                if (entity == null) return NotFound();
-                return View(MapToVm(entity));
-            }
-            catch (RequestFailedException)
-            {
-                return NotFound();
-            }
+            var product = await _context.Products.FindAsync(id);
+            if (product == null) return NotFound();
+            return View(product);
         }
 
         // GET: Products/Create
-        public IActionResult Create() => View(new ProductDto());
+        [Authorize(Roles = "Admin")] // Only Admins can create
+        public IActionResult Create() => View(new Product());
 
-        // POST: Products/Create (image upload via Function + upsert via Function)
+        // POST: Products/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(ProductDto model, IFormFile? imageFile)
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Create(Product model, IFormFile? imageFile)
         {
             if (!ModelState.IsValid) return View(model);
 
-            var id = string.IsNullOrWhiteSpace(model.RowKey) ? Guid.NewGuid().ToString("N") : model.RowKey;
+            model.Id = Guid.NewGuid().ToString("N");
 
+            // --- THIS LOGIC IS FROM PART 2 (UNCHANGED) ---
             string? imageUrl = model.ImageUrl;
             if (imageFile is not null && imageFile.Length > 0)
             {
@@ -89,43 +79,37 @@ namespace AzureRetailHub.Controllers
                     ModelState.AddModelError("", "Image upload failed via Functions API.");
                     return View(model);
                 }
+                model.ImageUrl = imageUrl; // Set the URL on the model
             }
+            // --- END PART 2 LOGIC ---
 
-            var payload = new ProductUpsertDto(
-                RowKey: id,
-                Name: model.Name ?? string.Empty,
-                Description: model.Description,
-                Price: model.Price,
-                ImageUrl: imageUrl
-            );
-
-            var res = await _fx.PostJsonAsync("products", payload);
-            if (res is null)
-            {
-                ModelState.AddModelError("", "Product create failed via Functions API.");
-                return View(model);
-            }
+            // Save metadata to SQL database
+            _context.Products.Add(model);
+            await _context.SaveChangesAsync();
 
             return RedirectToAction(nameof(Index));
         }
 
         // GET: Products/Edit/{id}
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Edit(string id)
         {
             if (string.IsNullOrWhiteSpace(id)) return NotFound();
-            var e = await _table.GetEntityAsync(_opts.ProductsTable, "PRODUCT", id);
-            if (e is null) return NotFound();
-            return View(MapToVm(e));
+            var product = await _context.Products.FindAsync(id);
+            if (product == null) return NotFound();
+            return View(product);
         }
 
-        // POST: Products/Edit/{id} (image upload via Function + upsert via Function)
+        // POST: Products/Edit/{id}
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(string id, ProductDto model, IFormFile? imageFile)
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Edit(string id, Product model, IFormFile? imageFile)
         {
-            if (id != model.RowKey) return BadRequest();
+            if (id != model.Id) return BadRequest();
             if (!ModelState.IsValid) return View(model);
 
+            // --- THIS LOGIC IS FROM PART 2 (UNCHANGED) ---
             string? imageUrl = model.ImageUrl;
             if (imageFile is not null && imageFile.Length > 0)
             {
@@ -135,60 +119,49 @@ namespace AzureRetailHub.Controllers
                     ModelState.AddModelError("", "Image upload failed via Functions API.");
                     return View(model);
                 }
+                model.ImageUrl = imageUrl; // Set the new URL
             }
+            // --- END PART 2 LOGIC ---
 
-            var payload = new ProductUpsertDto(
-                RowKey: model.RowKey!,
-                Name: model.Name ?? string.Empty,
-                Description: model.Description,
-                Price: model.Price,
-                ImageUrl: imageUrl
-            );
-
-            var res = await _fx.PostJsonAsync("products", payload);
-            if (res is null)
+            try
             {
-                ModelState.AddModelError("", "Product update failed via Functions API.");
-                return View(model);
+                // Update metadata in SQL database
+                _context.Update(model);
+                await _context.SaveChangesAsync();
             }
-
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!_context.Products.Any(e => e.Id == model.Id))
+                    return NotFound();
+                else
+                    throw;
+            }
             return RedirectToAction(nameof(Index));
         }
 
         // GET: Products/Delete/{id}
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(string id)
         {
             if (string.IsNullOrWhiteSpace(id)) return NotFound();
-            var e = await _table.GetEntityAsync(_opts.ProductsTable, "PRODUCT", id);
-            if (e is null) return NotFound();
-            return View(MapToVm(e));
+            var product = await _context.Products.FindAsync(id);
+            if (product == null) return NotFound();
+            return View(product);
         }
 
-        // NOTE: If you want to support delete, you can either:
-        // 1) Add a Products Delete function, OR
-        // 2) Keep deletes as direct table writes (brief only mandates Orders to be queue-updated).
-        // Below we keep a direct delete for Products for simplicity. If you implemented a Function,
-        // swap this to _fx.DeleteAsync("products/{id}") accordingly.
-
+        // POST: Products/Delete/{id}
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteConfirmed(string id)
         {
-            await _table.DeleteEntityAsync(_opts.ProductsTable, "PRODUCT", id);
+            var product = await _context.Products.FindAsync(id);
+            if (product != null)
+            {
+                _context.Products.Remove(product);
+                await _context.SaveChangesAsync();
+            }
             return RedirectToAction(nameof(Index));
         }
-
-        // ---------------- helpers ----------------
-
-        private static ProductDto MapToVm(TableEntity e) => new ProductDto
-        {
-            RowKey = e.RowKey,
-            Name = e.GetString("Name") ?? "",
-            Description = e.GetString("Description"),
-            Price = (decimal)(e.GetDouble("Price") ?? 0.0),
-            ImageUrl = e.GetString("ImageUrl")
-        };
-
-        private record ProductUpsertDto(string RowKey, string Name, string? Description, decimal Price, string? ImageUrl);
     }
 }

@@ -1,0 +1,19 @@
+﻿@{
+    ViewData["Title"] = "Checkout";
+}
+
+<h1>Checkout Confirmation</h1>
+<p>Please confirm your order.</p>
+
+<div class="alert alert-info">
+    <p>In a real application, this page would ask for shipping and payment details.</p>
+    <p>For this assignment, we will just confirm the order for the currently logged-in user.</p>
+</div>
+
+<form asp-action="Checkout" method="post">
+    @Html.AntiForgeryToken()
+    <div class="text-end">
+        <a class="btn btn-outline-secondary" asp-action="Index">Back to Cart</a>
+        <button type="submit" class="btn btn-success">Place Order</button>
+    </div>
+</form>

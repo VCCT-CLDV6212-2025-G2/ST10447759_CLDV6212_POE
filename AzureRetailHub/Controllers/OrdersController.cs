@@ -2,218 +2,160 @@
  * Jeron Okkers
  * ST10447759
  * CLDV6212
+ * MODIFIED FOR PART 3
+ * Reads/Updates Orders from SQL Database.
+ * Create is now handled by CartController.
  */
+
 using System;
-using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
-using Azure;
-using Azure.Data.Tables;
-using AzureRetailHub.Models;
-using AzureRetailHub.Services;   // TableStorageService + FunctionApiClient
-using AzureRetailHub.Settings;
+using AzureRetailHub.Data;           // ApplicationDbContext
+using AzureRetailHub.Models;         // Order, OrderDetailViewModel, Product, CustomerDto, OrderDto
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 
 namespace AzureRetailHub.Controllers
 {
+    [Authorize] // All order actions require login
     public class OrdersController : Controller
     {
-        private readonly TableStorageService _table;
-        private readonly StorageOptions _opts;
-        private readonly FunctionApiClient _fx; // <-- NEW: we call Functions HTTP endpoints
+        private readonly ApplicationDbContext _context;
+        private readonly UserManager<ApplicationUser> _userManager;
 
-        public OrdersController(
-            TableStorageService table,
-            IOptions<StorageOptions> options,
-            FunctionApiClient fx)               // <-- inject FunctionApiClient (remove QueueStorageService)
+        public OrdersController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
         {
-            _table = table;
-            _opts = options.Value;
-            _fx = fx;
+            _context = context;
+            _userManager = userManager;
         }
 
-        // READS can still come straight from Table Storage
+        // GET: Orders
         public async Task<IActionResult> Index()
         {
-            var list = new List<OrderDto>();
-            await foreach (var e in _table.QueryEntitiesAsync(_opts.OrdersTable))
+            IQueryable<Order> ordersQuery; // Uses the 'Order' entity
+
+            if (User.IsInRole("Admin"))
             {
-                list.Add(new OrderDto
-                {
-                    RowKey = e.RowKey,
-                    CustomerId = e.GetString("CustomerId") ?? "",
-                    OrderDate = e.GetDateTime("OrderDate") ?? DateTime.UtcNow,
-                    ItemsJson = e.GetString("ItemsJson"),
-                    Status = e.GetString("Status")
-                });
+                // Admins see all orders
+                ordersQuery = _context.Orders.Include(o => o.ApplicationUser);
             }
-            return View(list);
+            else
+            {
+                // Customers see only their own orders
+                var userId = _userManager.GetUserId(User);
+                ordersQuery = _context.Orders
+                    .Include(o => o.ApplicationUser)
+                    .Where(o => o.ApplicationUserId == userId);
+            }
+
+            var orders = await ordersQuery
+                .OrderByDescending(o => o.OrderDate)
+                .ToListAsync();
+
+            return View(orders); // Pass the List<Order> entities to the view
         }
 
-        public async Task<IActionResult> Create()
-        {
-            var customers = new List<CustomerDto>();
-            await foreach (var e in _table.QueryEntitiesAsync(_opts.CustomersTable))
-            {
-                customers.Add(new CustomerDto { RowKey = e.RowKey, FullName = e.GetString("FullName") });
-            }
-
-            var products = new List<ProductDto>();
-            await foreach (var e in _table.QueryEntitiesAsync(_opts.ProductsTable))
-            {
-                products.Add(new ProductDto
-                {
-                    RowKey = e.RowKey,
-                    Name = e.GetString("Name"),
-                    Price = Convert.ToDecimal(e.GetDouble("Price"))
-                });
-            }
-
-            var vm = new CreateOrderViewModel
-            {
-                AvailableCustomers = customers,
-                AvailableProducts = products
-            };
-            return View(vm);
-        }
-
-        // WRITE: enqueue (do NOT write Orders table directly)
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(string customerId, string itemsJson)
-        {
-            if (string.IsNullOrWhiteSpace(customerId) || string.IsNullOrWhiteSpace(itemsJson))
-            {
-                ModelState.AddModelError("", "Customer and items are required.");
-                return await Create(); // re-render with dropdowns
-            }
-
-            var orderId = Guid.NewGuid().ToString("N");
-            var status = "Processing";
-            var orderUtc = DateTime.UtcNow;
-
-            // Send to Functions HTTP endpoint that enqueues the message
-            var payload = new
-            {
-                Action = "CreateOrUpdate",
-                OrderId = orderId,
-                CustomerId = customerId,
-                Status = status,
-                OrderDate = orderUtc,
-                ItemsJson = itemsJson
-                // If your queue processor expects more fields (e.g., TotalAmount), include them here.
-            };
-
-            var res = await _fx.PostJsonAsync("orders/enqueue", payload);
-            if (res is null)
-            {
-                ModelState.AddModelError("", "Failed to enqueue order. Please try again.");
-                return await Create();
-            }
-
-            return RedirectToAction(nameof(Index));
-        }
-
-        // READ DETAILS from table (fine)
+        // GET: Orders/Details/{id}
         public async Task<IActionResult> Details(string id)
         {
             if (string.IsNullOrEmpty(id)) return NotFound();
 
-            var orderEntity = await _table.GetEntityAsync(_opts.OrdersTable, "ORDER", id);
-            if (orderEntity == null) return NotFound();
+            var order = await _context.Orders
+                .Include(o => o.ApplicationUser) // Load customer info
+                .Include(o => o.Items)           // Load order items
+                .ThenInclude(i => i.Product)     // Load product info for each item
+                .FirstOrDefaultAsync(o => o.Id == id);
 
-            var order = new OrderDto
+            if (order == null) return NotFound();
+
+            // Security check: Only Admins or owners can view
+            var currentUserId = _userManager.GetUserId(User);
+            if (!User.IsInRole("Admin") && order.ApplicationUserId != currentUserId)
             {
-                RowKey = orderEntity.RowKey,
-                CustomerId = orderEntity.GetString("CustomerId"),
-                OrderDate = orderEntity.GetDateTime("OrderDate") ?? DateTime.UtcNow,
-                ItemsJson = orderEntity.GetString("ItemsJson"),
-                Status = orderEntity.GetString("Status")
-            };
+                return Forbid();
+            }
 
-            var customerEntity = await _table.GetEntityAsync(_opts.CustomersTable, "CUSTOMER", order.CustomerId);
-            var customer = customerEntity != null
-                ? new CustomerDto
-                {
-                    RowKey = customerEntity.RowKey,
-                    FullName = customerEntity.GetString("FullName"),
-                    Email = customerEntity.GetString("Email"),
-                    Phone = customerEntity.GetString("Phone")
-                }
-                : new CustomerDto { FullName = "Customer not found" };
-
+            // --- FIX IS HERE ---
+            // Build view model
             var viewModel = new OrderDetailViewModel
             {
-                Order = order,
-                Customer = customer
+                // Map the Order ENTITY to the Order DTO
+                Order = new OrderDto
+                {
+                    Id = order.Id,
+                    CustomerId = order.ApplicationUserId, // Corrected property name
+                    OrderDate = order.OrderDate,
+                    Status = order.Status
+                },
+                Customer = new CustomerDto
+                {
+                    RowKey = order.ApplicationUser?.Id ?? "",
+                    FullName = order.ApplicationUser?.FullName ?? "N/A",
+                    Email = order.ApplicationUser?.Email
+                },
+                // Map the OrderItem ENTITY to the view model's ItemDetail DTO
+                Items = order.Items.Select(item => new OrderDetailViewModel.ItemDetail
+                {
+                    ProductId = item.ProductId,
+                    ProductName = item.Product?.Name ?? "Product not found",
+                    Quantity = item.Quantity,
+                    Price = item.Price
+                }).ToList()
             };
-
-            viewModel.ParseItems();
-
-            foreach (var item in viewModel.Items)
-            {
-                var productEntity = await _table.GetEntityAsync(_opts.ProductsTable, "PRODUCT", item.ProductId);
-                item.ProductName = productEntity?.GetString("Name") ?? "Product not found";
-            }
 
             return View(viewModel);
         }
 
-        // READ existing order to edit its Status (fine)
+        // GET: Orders/Edit/{id}
+        // GET: Orders/Edit/{id}
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Edit(string id)
         {
             if (string.IsNullOrEmpty(id)) return NotFound();
 
-            var entity = await _table.GetEntityAsync(_opts.OrdersTable, "ORDER", id);
-            if (entity == null) return NotFound();
+            // Use Include() to also get the related ApplicationUser (customer)
+            var order = await _context.Orders
+                .Include(o => o.ApplicationUser)
+                .FirstOrDefaultAsync(o => o.Id == id);
 
-            var order = new OrderDto
-            {
-                RowKey = entity.RowKey,
-                CustomerId = entity.GetString("CustomerId"),
-                OrderDate = entity.GetDateTime("OrderDate") ?? DateTime.UtcNow,
-                Status = entity.GetString("Status")
-            };
+            if (order == null) return NotFound();
 
             return View(order);
         }
 
-        // WRITE: enqueue update (do NOT update Orders table directly)
+        // POST: Orders/Edit/{id}
+        // POST: Orders/Edit/{id}
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(string id, OrderDto order)
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Edit(string id, [FromForm] string Status) // <-- This is the corrected line
         {
-            if (id != order.RowKey) return BadRequest();
-            //if (!ModelState.IsValid) return View(order);
-
-            // We fetch current entity to preserve fields like ItemsJson/OrderDate
-            var current = await _table.GetEntityAsync(_opts.OrdersTable, "ORDER", id);
-            //if (current == null) return NotFound();
-
-            //var payload = new
-            //{
-            //    Action = "CreateOrUpdate",
-            //    OrderId = id,
-            //    CustomerId = current.GetString("CustomerId") ?? order.CustomerId ?? "",
-            //    Status = string.IsNullOrWhiteSpace(order.Status) ? (current.GetString("Status") ?? "Pending") : order.Status,
-            //    OrderDate = current.GetDateTime("OrderDate") ?? DateTime.UtcNow,
-            //    ItemsJson = current.GetString("ItemsJson") ?? "[]"
-            //};
-
-            var partial = new TableEntity("ORDER", id)
+            var orderToUpdate = await _context.Orders.FindAsync(id);
+            if (orderToUpdate == null)
             {
-                ["Status"] = string.IsNullOrWhiteSpace(order.Status) ? "Pending" : order.Status
-            };
+                return NotFound();
+            }
 
-            //var res = await _fx.PostJsonAsync("orders/enqueue", payload);
-            //if (res is null)
-            //{
-            //    ModelState.AddModelError("", "Failed to enqueue order update. Please try again.");
-            //    return View(order);
-            //}
-            await _table.UpdateEntityAsync(_opts.OrdersTable, partial, TableUpdateMode.Merge);
+            // Update only the status from the form
+            orderToUpdate.Status = Status;
 
+            try
+            {
+                // Save the changes (no ModelState check needed)
+                _context.Update(orderToUpdate);
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!_context.Orders.Any(e => e.Id == orderToUpdate.Id))
+                    return NotFound();
+                else
+                    throw;
+            }
 
+            // Go back to the list
             return RedirectToAction(nameof(Index));
         }
     }

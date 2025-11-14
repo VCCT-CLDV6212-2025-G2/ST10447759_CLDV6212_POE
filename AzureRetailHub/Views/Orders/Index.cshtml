@@ -1,4 +1,4 @@
-﻿@model IEnumerable<AzureRetailHub.Models.OrderDto>
+﻿@model IEnumerable<AzureRetailHub.Models.Order>
 
 @{
     ViewData["Title"] = "Orders";
@@ -72,15 +72,15 @@
                 @foreach (var item in Model)
                 {
                     <tr>
-                        <td>@(item.RowKey.Length > 8 ? item.RowKey.Substring(0, 8).ToUpper() : item.RowKey.ToUpper())</td>
-                        <td>@item.CustomerId</td>
+                        <td>@(item.Id.Length > 8 ? item.Id.Substring(0, 8).ToUpper() : item.Id.ToUpper())</td>
+                        <td>@item.ApplicationUser</td>
                         <td>@item.OrderDate.ToString("yyyy-MM-dd")</td>
                         <td>
                             <span class="status-badge status-@(item.Status?.ToLower())">@item.Status</span>
                         </td>
                         <td>
-                            <a asp-action="Edit" asp-route-id="@item.RowKey">Edit Status</a> |
-                            <a asp-action="Details" asp-route-id="@item.RowKey">View Details</a>
+                            <a asp-action="Edit" asp-route-id="@item.Id">Edit Status</a> |
+                            <a asp-action="Details" asp-route-id="@item.Id">View Details</a>
                         </td>
                     </tr>
                 }

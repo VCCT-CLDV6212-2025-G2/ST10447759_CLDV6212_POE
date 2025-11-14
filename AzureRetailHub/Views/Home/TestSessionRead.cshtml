@@ -1,0 +1,24 @@
+﻿@{
+    ViewData["Title"] = "Session Test";
+}
+
+<h1>Session Test Page</h1>
+<p>This page checks if the session was saved correctly.</p>
+
+<hr />
+
+<h3>Test 1 (Simple String):</h3>
+<p>@ViewBag.TestMessage</p>
+
+<h3>Test 2 (Complex Object):</h3>
+<p>@ViewBag.TestObject</p>
+
+<hr />
+
+<p>
+    If you see "Hello, the session is working!" and the test object above,
+    your session is configured correctly.
+</p>
+<p>
+    If both fields are empty, your session is not working.
+</p>

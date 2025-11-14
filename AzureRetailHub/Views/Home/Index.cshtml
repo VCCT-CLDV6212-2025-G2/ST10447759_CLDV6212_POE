@@ -13,7 +13,7 @@
     <div class="product-grid">
         @foreach (var p in Model.NewArrivals)
         {
-            <a asp-controller="Products" asp-action="Details" asp-route-id="@p.RowKey" class="product-card">
+            <a asp-controller="Products" asp-action="Details" asp-route-id="@p.Id" class="product-card">
                 @if (!string.IsNullOrEmpty(p.ImageUrl))
                 {
                     <img src="@p.ImageUrl" alt="@p.Name" />
