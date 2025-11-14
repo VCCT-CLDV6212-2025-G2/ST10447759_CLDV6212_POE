@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 using AzureRetailHub.Data;           // ApplicationDbContext
 using AzureRetailHub.Models;         // Order, OrderDetailViewModel, Product, CustomerDto, OrderDto
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore; //
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 
