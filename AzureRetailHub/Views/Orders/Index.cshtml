@@ -1,7 +1,11 @@
 ﻿@model IEnumerable<AzureRetailHub.Models.Order>
+@inject IHttpContextAccessor HttpContextAccessor
+
 
 @{
-    ViewData["Title"] = "Orders";
+    ViewData["Title"] = "Order History";
+    var user = AzureRetailHub.Services.CartHelper.SessionUser.GetUser(HttpContextAccessor);
+    bool IsAdmin = user?.IsAdmin ?? false;
 }
 
 <style>
@@ -45,49 +49,57 @@
     /* Added for Finalized */
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h1>Orders</h1>
-        <p class="text-muted">Manage your orders and view details.</p>
-    </div>
-    <a asp-action="Create" class="btn btn-primary">Create New Order</a>
-</div>
-
-<div class="card mb-4">
-</div>
+<h1>Order History</h1>
 
 <div class="card">
     <div class="table-responsive">
-        <table class="table table-hover mb-0">
-            <thead>
-                <tr>
-                    <th>Order ID</th>
-                    <th>Customer Name</th>
-                    <th>Order Date</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="ordersTable">
-                @foreach (var item in Model)
-                {
-                    <tr>
-                        <td>@(item.Id.Length > 8 ? item.Id.Substring(0, 8).ToUpper() : item.Id.ToUpper())</td>
-                        <td>@item.ApplicationUser</td>
-                        <td>@item.OrderDate.ToString("yyyy-MM-dd")</td>
-                        <td>
+<table class="table table-hover mb-0">
+    <thead>
+        <tr>
+            <th>Order ID</th>   
+            <th>Order Date</th>
+            <th>Customer</th>
+            <th>Status</th>
+            <th>Total</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model) {
+        <tr>
+            <td>
+                @Html.DisplayFor(modelItem => item.Id)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.OrderDate)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.User.FullName)
+                (@Html.DisplayFor(modelItem => item.User.Email))
+            </td>
+            <td>
+                @* @Html.DisplayFor(modelItem => item.Status) *@
                             <span class="status-badge status-@(item.Status?.ToLower())">@item.Status</span>
+            </td>
+            <td>
+                            @item.Items.Sum(i => i.Price * i.Quantity).ToString("C", new System.Globalization.CultureInfo("en-ZA"))
+            </td>
+                        <td class="text-nowrap">
+                            <div class="d-flex gap-2">
+                                <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-info btn-sm">Details</a>
+
+                                @if (IsAdmin)
+                                {
+                                    <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-secondary btn-sm">
+                                        Edit Status
+                                    </a>
+                                }
+                            </div>
                         </td>
-                        <td>
-                            <a asp-action="Edit" asp-route-id="@item.Id">Edit Status</a> |
-                            <a asp-action="Details" asp-route-id="@item.Id">View Details</a>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+
+        </tr>
+}
+    </tbody>
+</table>
     </div>
 </div>
-
-@section Scripts {
-}

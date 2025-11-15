@@ -1,34 +1,41 @@
-﻿/*
- * ST10447759
- * CLDV6212
- * Part 3
- */
-using AzureRetailHub.Data;
-using AzureRetailHub.Models;
+﻿using AzureRetailHub.Models;
 using AzureRetailHub.Services;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using System.Linq;
+using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace AzureRetailHub.Controllers
 {
     public class CartController : Controller
     {
         private readonly Cart _cart;
-        private readonly ApplicationDbContext _context;
-        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly FunctionApiClient _api;
 
-        public CartController(Cart cart, ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        public CartController(Cart cart, FunctionApiClient api)
         {
             _cart = cart;
-            _context = context;
-            _userManager = userManager;
+            _api = api;
+        }
+
+        // Helper to get current user from Session
+        private UserViewModel? GetCurrentUser()
+        {
+            var userJson = HttpContext.Session.GetString("LoggedInUser");
+            if (string.IsNullOrEmpty(userJson))
+            {
+                return null;
+            }
+            return JsonSerializer.Deserialize<UserViewModel>(userJson);
         }
 
         // GET: /Cart/
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
+            // We must re-fetch product data to ensure prices are up to date
+            // This also protects against "stale" products in the cart
+            var products = await _api.GetProductsAsync();
+            _cart.ValidateCart(products);
             return View(_cart);
         }
 
@@ -38,7 +45,7 @@ namespace AzureRetailHub.Controllers
         {
             if (string.IsNullOrEmpty(id)) return NotFound();
 
-            var product = await _context.Products.FindAsync(id);
+            var product = await _api.GetProductByIdAsync(id);
             if (product == null) return NotFound();
 
             _cart.AddItem(product, quantity);
@@ -55,12 +62,15 @@ namespace AzureRetailHub.Controllers
         }
 
         // GET: /Cart/Checkout
-        [Authorize] // Must be logged in
         public IActionResult Checkout()
         {
+            if (GetCurrentUser() == null)
+            {
+                return RedirectToAction("Login", "Account", new { returnUrl = "/Cart/Checkout" });
+            }
+
             if (_cart.Items.Count == 0)
             {
-                ModelState.AddModelError("", "Your cart is empty!");
                 return RedirectToAction("Index", "Products");
             }
             return View();
@@ -68,47 +78,45 @@ namespace AzureRetailHub.Controllers
 
         // POST: /Cart/Checkout
         [HttpPost]
-        [Authorize]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Checkout(Order model) // We can bind to a model for shipping details, etc.
+        public async Task<IActionResult> Checkout(object model) // We don't need to bind anything
         {
+            var user = GetCurrentUser();
+            if (user == null)
+            {
+                return RedirectToAction("Login", "Account");
+            }
+
             if (_cart.Items.Count == 0)
             {
                 return RedirectToAction(nameof(Index));
             }
 
-            var user = await _userManager.GetUserAsync(User);
-            if (user == null) return Unauthorized();
+            // 1. Create the message DTO for the function
+            var orderMessage = new FunctionApiClient.OrderQueueMessage(
+                UserId: user.Id,
+                Status: "Processing",
+                Items: _cart.Items.Select(item => new FunctionApiClient.OrderItemMessage(
+                    item.ProductId,
+                    item.Quantity,
+                    item.Price
+                )).ToList()
+            );
 
-            // Create the order
-            var order = new Order
-            {
-                ApplicationUserId = user.Id,
-                OrderDate = DateTime.UtcNow,
-                Status = "Processing" // As per requirement [cite: 35]
-            };
+            // 2. Call the function to enqueue the order
+            var success = await _api.CreateOrderAsync(orderMessage);
 
-            // Add order items from the cart
-            foreach (var item in _cart.Items)
+            if (!success)
             {
-                var orderItem = new OrderItem
-                {
-                    ProductId = item.ProductId,
-                    Quantity = item.Quantity,
-                    Price = item.Price // Store price at time of purchase
-                };
-                order.Items.Add(orderItem);
+                ModelState.AddModelError("", "There was an error placing your order. Please try again.");
+                return View();
             }
 
-            // Save order to SQL Database
-            _context.Orders.Add(order);
-            await _context.SaveChangesAsync();
-
-            // Clear the cart
+            // 3. Clear the cart
             _cart.Clear();
 
-            // Redirect to a confirmation page (or Order Details)
-            return RedirectToAction("Details", "Orders", new { id = order.Id });
+            // 4. Redirect to Order History
+            return RedirectToAction("Index", "Orders");
         }
     }
 }

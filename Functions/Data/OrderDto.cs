@@ -1,15 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace AzureRetailHub.Models
+namespace AzureRetailHub.Functions.Data
 {
-    public class Order
+    public class OrderDto
     {
         public string Id { get; set; } = "";
         public DateTime OrderDate { get; set; }
         public string? Status { get; set; }
         public string UserId { get; set; } = "";
-        public UserViewModel? User { get; set; } // Renamed from ApplicationUser
-        public List<OrderItem> Items { get; set; } = new List<OrderItem>();
+        public UserDto? User { get; set; } // Nested DTO
+        public List<OrderItemDto> Items { get; set; } = new List<OrderItemDto>(); // Nested DTO list
     }
 }

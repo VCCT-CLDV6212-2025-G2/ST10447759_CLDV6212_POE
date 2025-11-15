@@ -1,6 +1,13 @@
-﻿namespace AzureRetailHub.Models
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace AzureRetailHub.Functions.Data
 {
-    public class Product
+    // --- A DTO to safely send product data ---
+    public class ProductDto
     {
         public string Id { get; set; } = "";
         public string Name { get; set; } = "";

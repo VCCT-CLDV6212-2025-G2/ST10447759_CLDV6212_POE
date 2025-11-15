@@ -1,4 +1,9 @@
-﻿<!DOCTYPE html>
+﻿@inject IHttpContextAccessor HttpContextAccessor
+@{
+    var user = AzureRetailHub.Services.CartHelper.SessionUser.GetUser(HttpContextAccessor);
+}
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -8,43 +13,140 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/AzureRetailHub.styles.css" asp-append-version="true" />
+
+    <style>
+        /* Modern Header Styling */
+        .site-header {
+            background: white;
+            border-bottom: 1px solid #e1e1e1;
+            padding: 15px 0;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+
+        .header-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .brand {
+            font-size: 1.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .brand-icon {
+            font-size: 1.4rem;
+        }
+
+        .main-nav a {
+            margin-right: 20px;
+            text-decoration: none;
+            font-weight: 500;
+            color: #333;
+            transition: 0.2s;
+        }
+
+            .main-nav a:hover {
+                color: #007bff;
+            }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+        }
+
+        .bell {
+            font-size: 1.3rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+
+        /* Footer */
+        .site-footer {
+            background: #fafafa;
+            padding: 20px 0;
+            margin-top: 40px;
+            border-top: 1px solid #e1e1e1;
+        }
+
+        .footer-inner {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            font-size: 1rem;
+        }
+
+        .copyright {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #777;
+        }
+    </style>
 </head>
+
 <body>
 
-    <!-- Modern ABC Retail–style header -->
+    <!-- Modern Header -->
     <header class="site-header">
         <div class="container header-inner">
 
             <div class="brand">
-                <a asp-area="" asp-controller="Home" asp-action="Index" style="text-decoration:none; color:inherit;">
+                <a asp-controller="Home" asp-action="Index" style="text-decoration:none; color:inherit;">
                     <span class="brand-icon">✺</span>
-                    <span class="brand-name">AzureRetailHub</span>
+                    AzureRetailHub
                 </a>
             </div>
 
             <nav class="main-nav">
                 <a asp-controller="Home" asp-action="Index">Home</a>
                 <a asp-controller="Products" asp-action="Index">Products</a>
-                <a asp-controller="Orders" asp-action="Index">My Orders</a>
                 <a asp-controller="Contracts" asp-action="Index">Contracts</a>
-                <a asp-controller="Cart" asp-action="Index">Cart</a>
+
+                @if (user != null)
+                {
+                    <a asp-controller="Orders" asp-action="Index">My Orders</a>
+                }
             </nav>
 
             <div class="header-right">
-                <button class="bell" aria-label="Notifications">🔔</button>
+                <button class="bell">🔔</button>
+
                 <img class="avatar" src="https://picsum.photos/seed/avatar/48/48" alt="user" />
-                <partial name="_LoginPartial" />
+
+                @if (user != null)
+                {
+                    <span>Welcome, @user.FullName!</span>
+                    <form asp-controller="Account" asp-action="Logout" method="post">
+                        <button class="btn btn-link p-0">Logout</button>
+                    </form>
+                }
+                else
+                {
+                    <a class="btn btn-outline-primary btn-sm" asp-controller="Account" asp-action="Login">Login</a>
+                    <a class="btn btn-primary btn-sm" asp-controller="Account" asp-action="Register">Register</a>
+                }
             </div>
 
         </div>
     </header>
 
-    <!-- Main body -->
     <main class="container">
         @RenderBody()
     </main>
 
-    <!-- Modern ABC Retail–style footer -->
+    <!-- Footer -->
     <footer class="site-footer">
         <div class="container footer-inner">
             <div class="footer-col">Contact Us</div>
@@ -56,11 +158,9 @@
         </div>
     </footer>
 
-    <!-- Scripts -->
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
-
 </body>
 </html>

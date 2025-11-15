@@ -52,6 +52,35 @@ namespace AzureRetailHub.Services
             Save();
         }
 
+        // ... inside your Cart.cs class ...
+
+        // NEW METHOD: Validates items in cart against the master product list
+        public void ValidateCart(List<Product> products)
+        {
+            var itemsToRemove = new List<CartItem>();
+            foreach (var item in Items)
+            {
+                var product = products.FirstOrDefault(p => p.Id == item.ProductId);
+                if (product == null)
+                {
+                    // Product no longer exists, remove it
+                    itemsToRemove.Add(item);
+                }
+                else
+                {
+                    // Product exists, update its name and price
+                    item.ProductName = product.Name;
+                    item.Price = product.Price;
+                }
+            }
+
+            foreach (var item in itemsToRemove)
+            {
+                Items.Remove(item);
+            }
+            Save();
+        }
+
         public decimal GetTotal() => Items.Sum(i => i.Total);
 
         public void Clear()

@@ -21,8 +21,8 @@
             <tr>
                 <td>@item.ProductName</td>
                 <td>@item.Quantity</td>
-                <td>@item.Price.ToString("C")</td>
-                <td>@item.Total.ToString("C")</td>
+                <td>@item.Price.ToString("C", new System.Globalization.CultureInfo("en-ZA"))</td>
+                <td>@item.Total.ToString("C", new System.Globalization.CultureInfo("en-ZA"))</td>
                 <td>
                     <form asp-action="Remove" method="post">
                         <input type="hidden" name="id" value="@item.ProductId" />
@@ -35,7 +35,7 @@
     <tfoot>
         <tr>
             <td colspan="3"></td>
-            <td><strong>@Model.GetTotal().ToString("C")</strong></td>
+            <td><strong>@Model.GetTotal().ToString("C", new System.Globalization.CultureInfo("en-ZA"))</strong></td>
             <td></td>
         </tr>
     </tfoot>

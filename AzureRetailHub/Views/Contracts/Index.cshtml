@@ -1,7 +1,11 @@
 ﻿@model IEnumerable<AzureRetailHub.Models.FileDetailDto>
+@inject IHttpContextAccessor HttpContextAccessor
+
 
 @{
     ViewData["Title"] = "Contracts";
+    var user = AzureRetailHub.Services.CartHelper.SessionUser.GetUser(HttpContextAccessor);
+    bool IsAdmin = user?.IsAdmin ?? false;
     @* Add these lines to show success/error messages *@
     @if (TempData["SuccessMessage"] != null)
     {
@@ -70,6 +74,8 @@
                 </tr>
             </thead>
             <tbody>
+                    @*                 @if (IsAdmin)
+                    { *@
                 @foreach (var item in Model)
                 {
                     <tr>
@@ -80,8 +86,9 @@
                             <a asp-action="Download" asp-route-fileName="@item.Name">View</a> |
                             <a asp-action="Delete" asp-route-fileName="@item.Name">Delete</a>
                         </td>
-                    </tr>
+                    </tr>   
                 }
+                @* } *@
             </tbody>
         </table>
     </div>

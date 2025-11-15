@@ -1,166 +1,133 @@
-﻿/*
- * FILE: ProductsController.cs
- * MODIFIED FOR PART 3
- * This controller now uses ApplicationDbContext (SQL) for metadata.
- * It still uses FunctionApiClient (from Part 2) for image uploads.
- */
-using System;
-using System.Linq;
-using System.Threading.Tasks;
-using AzureRetailHub.Data;      // ApplicationDbContext
-using AzureRetailHub.Models;     // Product
-using AzureRetailHub.Services;   // FunctionApiClient
+﻿using AzureRetailHub.Models;
+using AzureRetailHub.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authorization; // For admin security
+using System.IO;
+using System.Threading.Tasks;
 
 namespace AzureRetailHub.Controllers
 {
     public class ProductsController : Controller
     {
-        private readonly ApplicationDbContext _context; // <-- CHANGED
-        private readonly FunctionApiClient _fx;
+        private readonly FunctionApiClient _api;
 
-        public ProductsController(
-            ApplicationDbContext context,    // <-- CHANGED
-            FunctionApiClient fx)
+        public ProductsController(FunctionApiClient api)
         {
-            _context = context;
-            _fx = fx;
+            _api = api;
         }
 
-        // GET: Products (with simple search on Name)
-        // This now reads from SQL
+        // GET: Products
         public async Task<IActionResult> Index(string? q)
         {
-            var query = _context.Products.AsQueryable();
-
+            var products = await _api.GetProductsAsync();
+            // --- THIS IS THE FIX ---
+            // Filter the products list if a search query 'q' exists
             if (!string.IsNullOrWhiteSpace(q))
             {
-                query = query.Where(p => p.Name.Contains(q));
+                products = products.Where(p =>
+                    p.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    (p.Description != null && p.Description.Contains(q, StringComparison.OrdinalIgnoreCase))
+                ).ToList();
             }
 
-            var list = await query.ToListAsync();
-            ViewBag.Query = q;
-            return View(list);
+            ViewBag.Query = q; // This sends the search term back to the view
+            // --- END FIX ---
+            // We'll filter in the UI for simplicity, or you can add a search query to your function
+            return View(products);
         }
 
-        // GET: Products/Details/{id}
-        // This now reads from SQL
+        // GET: Products/Details/5
         public async Task<IActionResult> Details(string id)
         {
-            if (string.IsNullOrWhiteSpace(id)) return NotFound();
-            var product = await _context.Products.FindAsync(id);
+            if (id == null) return NotFound();
+            var product = await _api.GetProductByIdAsync(id);
             if (product == null) return NotFound();
             return View(product);
         }
 
         // GET: Products/Create
-        [Authorize(Roles = "Admin")] // Only Admins can create
-        public IActionResult Create() => View(new Product());
+        public IActionResult Create()
+        {
+            // We will add an Admin check here later
+            return View();
+        }
 
         // POST: Products/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Create(Product model, IFormFile? imageFile)
+        public async Task<IActionResult> Create(Product product, IFormFile? imageFile)
         {
-            if (!ModelState.IsValid) return View(model);
-
-            model.Id = Guid.NewGuid().ToString("N");
-
-            // --- THIS LOGIC IS FROM PART 2 (UNCHANGED) ---
-            string? imageUrl = model.ImageUrl;
-            if (imageFile is not null && imageFile.Length > 0)
+            if (ModelState.IsValid)
             {
-                imageUrl = await _fx.PostFileAsync("products/image", imageFile);
-                if (imageUrl is null)
+                // 1. Upload the image if it exists
+                if (imageFile is not null && imageFile.Length > 0)
                 {
-                    ModelState.AddModelError("", "Image upload failed via Functions API.");
-                    return View(model);
+                    await using var stream = imageFile.OpenReadStream();
+                    var imageUrl = await _api.UploadProductImageAsync(stream, imageFile.FileName);
+                    if (imageUrl != null)
+                    {
+                        product.ImageUrl = imageUrl;
+                    }
                 }
-                model.ImageUrl = imageUrl; // Set the URL on the model
+
+                // 2. Create the product via the function
+                await _api.CreateProductAsync(product);
+                return RedirectToAction(nameof(Index));
             }
-            // --- END PART 2 LOGIC ---
-
-            // Save metadata to SQL database
-            _context.Products.Add(model);
-            await _context.SaveChangesAsync();
-
-            return RedirectToAction(nameof(Index));
+            return View(product);
         }
 
-        // GET: Products/Edit/{id}
-        [Authorize(Roles = "Admin")]
+        // GET: Products/Edit/5
         public async Task<IActionResult> Edit(string id)
         {
-            if (string.IsNullOrWhiteSpace(id)) return NotFound();
-            var product = await _context.Products.FindAsync(id);
+            if (id == null) return NotFound();
+            var product = await _api.GetProductByIdAsync(id);
             if (product == null) return NotFound();
             return View(product);
         }
 
-        // POST: Products/Edit/{id}
+        // POST: Products/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Edit(string id, Product model, IFormFile? imageFile)
+        public async Task<IActionResult> Edit(string id, Product product, IFormFile? imageFile)
         {
-            if (id != model.Id) return BadRequest();
-            if (!ModelState.IsValid) return View(model);
+            if (id != product.Id) return NotFound();
 
-            // --- THIS LOGIC IS FROM PART 2 (UNCHANGED) ---
-            string? imageUrl = model.ImageUrl;
-            if (imageFile is not null && imageFile.Length > 0)
+            if (ModelState.IsValid)
             {
-                imageUrl = await _fx.PostFileAsync("products/image", imageFile);
-                if (imageUrl is null)
+                // 1. Upload a new image if provided
+                if (imageFile is not null && imageFile.Length > 0)
                 {
-                    ModelState.AddModelError("", "Image upload failed via Functions API.");
-                    return View(model);
+                    await using var stream = imageFile.OpenReadStream();
+                    var imageUrl = await _api.UploadProductImageAsync(stream, imageFile.FileName);
+                    if (imageUrl != null)
+                    {
+                        product.ImageUrl = imageUrl;
+                    }
                 }
-                model.ImageUrl = imageUrl; // Set the new URL
-            }
-            // --- END PART 2 LOGIC ---
 
-            try
-            {
-                // Update metadata in SQL database
-                _context.Update(model);
-                await _context.SaveChangesAsync();
+                // 2. Update the product via the function
+                await _api.UpdateProductAsync(product);
+                return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Products.Any(e => e.Id == model.Id))
-                    return NotFound();
-                else
-                    throw;
-            }
-            return RedirectToAction(nameof(Index));
+            return View(product);
         }
 
-        // GET: Products/Delete/{id}
-        [Authorize(Roles = "Admin")]
+        // GET: Products/Delete/5
         public async Task<IActionResult> Delete(string id)
         {
-            if (string.IsNullOrWhiteSpace(id)) return NotFound();
-            var product = await _context.Products.FindAsync(id);
+            if (id == null) return NotFound();
+            var product = await _api.GetProductByIdAsync(id);
             if (product == null) return NotFound();
             return View(product);
         }
 
-        // POST: Products/Delete/{id}
+        // POST: Products/Delete/5
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteConfirmed(string id)
         {
-            var product = await _context.Products.FindAsync(id);
-            if (product != null)
-            {
-                _context.Products.Remove(product);
-                await _context.SaveChangesAsync();
-            }
+            await _api.DeleteProductAsync(id);
             return RedirectToAction(nameof(Index));
         }
     }
