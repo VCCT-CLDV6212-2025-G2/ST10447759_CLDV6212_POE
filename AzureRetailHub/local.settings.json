@@ -1,0 +1,15 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "DefaultEndpointsProtocol=https;AccountName=azureretailhubstorage;AccountKey=L+KmYqhnnM3g6VCUBjy+ZTZcCHUR8IhMXs4aaapshiKwYEdbrWcJW1WG3BmmOaIn2IxiktoteeVl+AStE6MDzw==;EndpointSuffix=core.windows.net",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "StorageOptions__ConnectionString": "DefaultEndpointsProtocol=https;AccountName=azureretailhubstorage;AccountKey=L+KmYqhnnM3g6VCUBjy+ZTZcCHUR8IhMXs4aaapshiKwYEdbrWcJW1WG3BmmOaIn2IxiktoteeVl+AStE6MDzw==;EndpointSuffix=core.windows.net",
+    "ConnectionStrings:DefaultConnection": "Server=tcp:abcretail-sqlserver-st10447759.database.windows.net,1433;Initial Catalog=abcretail-sqldb;Persist Security Info=False;User ID=sqladmin;Password=Sinister05*;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;",
+    "StorageOptions__CustomersTable": "customers",
+    "StorageOptions__ProductsTable": "products",
+    "StorageOptions__OrdersTable": "orders",
+    "StorageOptions__BlobContainer": "productimages",
+    "StorageOptions__QueueName": "orderqueue",
+    "StorageOptions__FileShareName": "contracts"
+  }
+}
