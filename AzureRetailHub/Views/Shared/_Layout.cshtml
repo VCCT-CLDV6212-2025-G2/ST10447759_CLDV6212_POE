@@ -70,7 +70,31 @@
             background: none;
             border: none;
             cursor: pointer;
+            color: #333; /* Added color */
         }
+
+        /* --- NEW CSS FOR CART ICON --- */
+        .cart-icon {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #333; /* Match other icons */
+            padding: 0;
+            margin: 0;
+            line-height: 1; /* Aligns it nicely */
+        }
+
+            .cart-icon svg {
+                width: 24px; /* Control icon size */
+                height: 24px;
+                stroke-width: 2px;
+            }
+
+            .cart-icon:hover {
+                color: #007bff; /* Match nav link hover */
+            }
+        /* --- END NEW CSS --- */
+
 
         /* Footer */
         .site-footer {
@@ -121,6 +145,17 @@
             </nav>
 
             <div class="header-right">
+
+                <!-- === NEW CART ICON LINK === -->
+                <a asp-controller="Cart" asp-action="Index" class="cart-icon" title="View Cart">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="9" cy="21" r="1"></circle>
+                        <circle cx="20" cy="21" r="1"></circle>
+                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                    </svg>
+                </a>
+                <!-- === END NEW LINK === -->
+
                 <button class="bell">🔔</button>
 
                 <img class="avatar" src="https://picsum.photos/seed/avatar/48/48" alt="user" />
